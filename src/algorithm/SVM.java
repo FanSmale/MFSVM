@@ -75,9 +75,9 @@ public class SVM {
 	double cost;
 
 	/**
-	 * The grad?
+	 * The gradient?
 	 */
-	double[] grad;
+	double[] gradient;
 
 	/**
 	 * What is yp?
@@ -109,7 +109,7 @@ public class SVM {
 		numInstances = data.numInstances();
 		numClasses = data.attribute(numConditions).numValues();
 
-		// It supports -1 and 1.
+		// Change class into binary: -1 and 1.
 		for (int i = 0; i < numInstances; i++) {
 			if (data.instance(i).classValue() < 1e-6) {
 				data.instance(i).setClassValue(-1);
@@ -119,25 +119,31 @@ public class SVM {
 		} // Of for i
 
 		w = new double[numConditions + 1];
-		grad = new double[numConditions + 1];
+		gradient = new double[numConditions + 1];
 		cost = 0;
 		yp = new double[numInstances];
 	}// Of the constructor
 
 	/**
 	 ********************
-	 * Compute cost and grad.
+	 * Compute cost and gradient.
+	 * See https://zhuanlan.zhihu.com/p/31886934.
 	 ********************
 	 */
-	public void computeCostGrad() {
+	public void computeCostGradient() {
 		cost = 0;
+		double tempActualLabel, tempValue;
 
+		//Step 1. Compute cost.
 		for (int i = 0; i < numInstances; i++) {
 			yp[i] = innerProduct(data.instance(i), w);
+			tempActualLabel = data.instance(i).classValue();
 
-			double tempValue = data.instance(i).classValue() * yp[i] - 1;
-			if (tempValue < 0) {
-				cost -= tempValue;
+			//xi_i = \max(0, 1 - y_i(w x_i + b))
+			tempValue = 1 - tempActualLabel * yp[i];
+			if (tempValue > 0) {
+				//Less than the margin.
+				cost += tempValue;
 			} // Of if
 		} // Of for i
 
@@ -145,28 +151,32 @@ public class SVM {
 			cost += 0.5 * lambda * w[i] * w[i];
 		} // Of for i
 
+		//Step 2. Compute gradient
 		// For conditions.
 		for (int i = 0; i < numConditions + 1; i++) {
-			grad[i] = Math.abs(lambda * w[i]);
+			gradient[i] = Math.abs(lambda * w[i]);
 
 			for (int j = 0; j < numInstances; j++) {
-				double tempValue = data.instance(j).classValue() * yp[j] - 1;
-				if (tempValue < 0) {
-					grad[i] -= data.instance(j).classValue() * data.instance(j).value(i);
+				tempActualLabel = data.instance(j).classValue();
+				tempValue = 1 - tempActualLabel * yp[j];
+				if (tempValue > 0) {
+					gradient[i] -= tempActualLabel * data.instance(j).value(i);
 				} // Of if
 			} // Of for j
 		} // Of for i
 
-		// For offset.
-		grad[numConditions] = Math.abs(lambda * w[numConditions]);
+		// For offset b.
+		gradient[numConditions] = Math.abs(lambda * w[numConditions]);
 		for (int j = 0; j < numInstances; j++) {
-			double tempValue = data.instance(j).classValue() * yp[j] - 1;
-			if (tempValue < 0) {
-				grad[numConditions] -= data.instance(j).classValue()
+			tempActualLabel = data.instance(j).classValue();
+
+			tempValue = 1 - tempActualLabel * yp[j];
+			if (tempValue > 0) {
+				gradient[numConditions] -= tempActualLabel
 						* data.instance(j).value(numConditions);
 			} // Of if
 		} // Of for j
-	}// Of computeCostGrad
+	}// Of computeCostGradient
 
 	/**
 	 ********************
@@ -175,13 +185,13 @@ public class SVM {
 	 */
 	public void update() {
 		for (int i = 0; i < numConditions + 1; i++) {
-			w[i] -= lr * grad[i];
+			w[i] -= lr * gradient[i];
 		} // Of for i
 	}// Of update
 
 	/**
 	 ********************
-	 * Train. Compute w and b.
+	 * Train. Compute w.
 	 * 
 	 * @param paraLambda
 	 *            The lambda value.
@@ -191,7 +201,7 @@ public class SVM {
 		lambda = paraLambda;
 
 		for (int i = 0; i < paraRounds; i++) {
-			computeCostGrad();
+			computeCostGradient();
 			System.out.println("Cost = " + cost + ", w = " + Arrays.toString(w));
 
 			if (cost < threshold) {
@@ -308,7 +318,7 @@ public class SVM {
 		// String tempFilename = "src/data/wdbc_norm_ex.arff";
 
 		SVM tempLearner = new SVM(tempFilename);
-		tempLearner.train(0.0001, 10000);
+		tempLearner.train(0.0001, 100000);
 
 		tempLearner.classify();
 
